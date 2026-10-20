@@ -7,3 +7,4 @@ venv/
 .idea/
 .vscode/
 out/basemap_preview.jpg
+.pytest_cache/

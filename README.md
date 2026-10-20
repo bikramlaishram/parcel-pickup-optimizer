@@ -1,5 +1,7 @@
 # Parcel Pickup Planner
 
+[![CI](https://github.com/bikramlaishram/parcel-pickup-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/bikramlaishram/parcel-pickup-optimizer/actions/workflows/ci.yml)
+
 **Plans parcel pickups for a team of drivers, keeps to customer time windows, and re-plans during the day as new requests come in.** Built with Google OR-Tools on real Kyiv road data, using sample requests.
 
 **[▶ Live demo](https://bikramlaishram.github.io/parcel-pickup-optimizer/)**
@@ -56,6 +58,8 @@ pip install -r requirements.txt   # tested with Python 3.13
 
 python3 src/run.py          # plan the sample day (about 1 minute)
 python3 src/verify.py       # check the exported plan against the raw data
+
+pip install -r requirements-dev.txt && pytest -q   # test suite, a few seconds, no network
 open index.html             # or just open the file in a browser
 ```
 
@@ -71,6 +75,7 @@ python3 src/robustness.py   # five more seeds
 
 ## What was tested
 
+- A `pytest` suite (`tests/`) runs on every push and pull request in GitHub Actions. It needs no network and takes a few seconds. It checks that `verify.py` passes on the committed results, that the message parser reads back every message format it generates (including all 152 sample requests), that OR-Tools on a 20-request, 2-driver subset respects time windows, van capacity and shift ends and collects at least as many parcels as the manual-style plan, and that `build_page.py` rebuilds `index.html` byte for byte.
 - `src/verify.py` replays every exported route from `data/day.json` and checks time windows, recomputed arrival times, shift ends, van capacity, that no stop is served twice, that no driver heads to a request before it exists, and that parcel totals match the reported numbers. On the committed output it reports **0 problems** for both plans.
 - `src/robustness.py` repeats the comparison on five independently generated days. The results are in `out/robustness.json`.
 
@@ -81,7 +86,7 @@ python3 src/robustness.py   # five more seeds
 - **Results vary between runs.** The solver stops at a time limit, so re-running `src/run.py` can give slightly different numbers. A local run collected 1,079 parcels from 151 pickups, against 1,073 and 148 in the committed output.
 - **Needs public services to rebuild.** Generating new data and basemaps calls the public OSRM demo server and OpenStreetMap tiles, which have usage limits.
 - **Simple intake.** The message parser is rule-based and only handles the formats the generator produces.
-- **No automated test suite or CI yet.** Verification is a script you run by hand.
+- **Tests cover a small solver case only.** The full-day run and the OSRM/tile download steps are not run in CI.
 - **Fixed scenario:** one hub, identical vans, and everything happens on one day.
 
 ## Credits
