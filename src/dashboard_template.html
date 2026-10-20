@@ -1,0 +1,459 @@
+<title>Parcel Pickup Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: dispatch console. Controls bar, then map + side rail, then driver timeline, intake, and the production pipeline. */
+:root{
+  --bg:#f3f5f6; --panel:#ffffff; --ink:#14202b; --ink-2:#4a5866; --ink-3:#7b8794; --line:#dde3e8; --line-2:#c9d2da;
+  --accent:#0d6e8a; --accent-ink:#ffffff; --accent-soft:#e3f1f5;
+  --good:#1c7c3c; --good-soft:#e5f3ea; --warn:#a15c00; --muted-pt:#9aa5b0;
+  --d1:#2a78d6; --d2:#eb6834; --d3:#1baf7a; --d4:#e87ba4; --d5:#6250d6; --d6:#008300;
+  --map-filter:none; --stop-fill:#ffffff;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f161c; --panel:#162029; --ink:#e7edf2; --ink-2:#b0bcc7; --ink-3:#83909c; --line:#26323d; --line-2:#33424f;
+  --accent:#4fb3cf; --accent-ink:#06141a; --accent-soft:#16323c;
+  --good:#5cc27e; --good-soft:#163222; --warn:#e3a54a; --muted-pt:#6f7c88;
+  --d1:#3987e5; --d2:#d95926; --d3:#199e70; --d4:#d55181; --d5:#9085e9; --d6:#2c9a2c;
+  --map-filter:invert(.92) hue-rotate(180deg) saturate(.6) brightness(.9); --stop-fill:#162029; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161c; --panel:#162029; --ink:#e7edf2; --ink-2:#b0bcc7; --ink-3:#83909c; --line:#26323d; --line-2:#33424f;
+  --accent:#4fb3cf; --accent-ink:#06141a; --accent-soft:#16323c;
+  --good:#5cc27e; --good-soft:#163222; --warn:#e3a54a; --muted-pt:#6f7c88;
+  --d1:#3987e5; --d2:#d95926; --d3:#199e70; --d4:#d55181; --d5:#9085e9; --d6:#2c9a2c;
+  --map-filter:invert(.92) hue-rotate(180deg) saturate(.6) brightness(.9); --stop-fill:#162029; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.5}
+.wrap{max-width:1360px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:16px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:.005em}
+h1{font-size:30px;font-weight:700;line-height:1.1}
+h2{font-size:18px;font-weight:600}
+.eyebrow{font-family:var(--f-display);font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-3);font-weight:600}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px 24px}
+header p{margin:6px 0 0;color:var(--ink-2);max-width:62ch}
+.byline{color:var(--ink-3);font-size:13px;text-align:right}
+@media (max-width:640px){.byline{text-align:left}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:0}
+.pad{padding:16px}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;padding:12px 16px;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.seg button{font:600 13px var(--f-display);letter-spacing:.02em;padding:8px 14px;border:0;background:transparent;color:var(--ink-2);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.seg button:focus-visible,.btn:focus-visible,input[type=range]:focus-visible,.drv:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{font:600 13px var(--f-display);border:1px solid var(--line-2);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.clock{font:600 22px var(--f-mono);min-width:5ch}
+.timebox{display:flex;align-items:center;gap:10px;flex:1 1 320px;min-width:0}
+.timebox input{flex:1;min-width:0;accent-color:var(--accent)}
+.live{font-size:13px;color:var(--ink-2)}
+.live b{color:var(--ink)}
+.main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:1040px){.main{grid-template-columns:minmax(0,1fr)}}
+.mapbox{position:relative;overflow:hidden;border-radius:10px}
+.mapbox svg{display:block;width:100%;height:auto}
+.mapimg{filter:var(--map-filter)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 8px;padding:10px 12px;border-top:1px solid var(--line);align-items:center}
+.drv{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:3px 10px 3px 4px;background:var(--panel);color:var(--ink);font:500 12px var(--f-body);cursor:pointer}
+.drv[aria-pressed="true"]{border-color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--ink-2)}
+.drv i{width:18px;height:18px;border-radius:50%;display:inline-grid;place-items:center;color:#fff;font:600 10px var(--f-mono);font-style:normal}
+.keys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink-3);margin-left:auto}
+.keys span{display:inline-flex;align-items:center;gap:5px}
+.attrib{position:absolute;right:6px;bottom:4px;font-size:10px;color:#3d4650;background:rgba(255,255,255,.75);padding:1px 5px;border-radius:3px}
+.rail{display:grid;gap:16px}
+.hero{display:grid;gap:4px}
+.hero .big{font:700 40px/1 var(--f-display);color:var(--good)}
+.hero .sub{color:var(--ink-2)}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{font:600 11px var(--f-display);text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3)}
+td.delta{color:var(--good);font-weight:600}
+td.delta.neg{color:var(--warn)}
+tr:last-child td{border-bottom:0}
+.col-sel{background:var(--accent-soft)}
+.feed{display:grid;gap:0;max-height:330px;overflow:auto}
+.ev{display:grid;grid-template-columns:52px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.ev:last-child{border-bottom:0}
+.ev.future{opacity:.45}
+.ev .t{font:500 13px var(--f-mono);color:var(--ink-2)}
+.ev .h{font-weight:600}
+.ev .d{color:var(--ink-2);font-size:13px}
+.chip{display:inline-block;font:500 11px var(--f-mono);padding:1px 6px;border-radius:4px;background:var(--bg);border:1px solid var(--line);color:var(--ink-2);margin:2px 4px 0 0}
+.chip.exp{border-color:var(--warn);color:var(--warn)}
+.msgs{display:grid;gap:10px;max-height:420px;overflow:auto}
+.msg{background:var(--bg);border:1px solid var(--line);border-radius:12px 12px 12px 3px;padding:10px 12px;font-size:13px;white-space:pre-line}
+.msg .who{font:600 12px var(--f-display);letter-spacing:.04em;color:var(--ink-2);margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.empty{color:var(--ink-3);font-size:13px}
+.gantt-wrap{overflow-x:auto}
+.gantt{min-width:760px;display:block;width:100%}
+.gantt text{font-family:var(--f-mono);font-size:11px;fill:var(--ink-3)}
+.gantt .lbl{font-family:var(--f-display);font-size:13px;fill:var(--ink);font-weight:600}
+.grid3{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:900px){.grid3{grid-template-columns:minmax(0,1fr)}}
+.intake{display:grid;gap:10px;max-height:420px;overflow:auto}
+.in{display:grid;gap:6px;padding:10px 0;border-bottom:1px solid var(--line)}
+.in:last-child{border-bottom:0}
+.raw{font:400 12.5px/1.45 var(--f-mono);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;overflow-wrap:anywhere}
+.parsed{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;font-size:12px;color:var(--ink-3)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:0;counter-reset:s}
+.steps li{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);counter-increment:s}
+.steps li:last-child{border-bottom:0}
+.steps li::before{content:counter(s);font:600 13px var(--f-mono);color:var(--accent);border:1px solid var(--accent);border-radius:50%;width:24px;height:24px;display:grid;place-items:center}
+.steps b{font-family:var(--f-display);font-size:15px;font-weight:600}
+.steps p{margin:2px 0 0;color:var(--ink-2);font-size:13px}
+.note{color:var(--ink-2);font-size:13px;max-width:110ch}
+.note p{margin:6px 0}
+.tip{position:fixed;pointer-events:none;z-index:20;background:var(--ink);color:var(--bg);font-size:12px;padding:7px 9px;border-radius:6px;max-width:260px;line-height:1.4;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.tip b{font-weight:600}
+.pulse{animation:pulse 1.6s ease-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes pulse{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(2.6)}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none;opacity:.5}}
+.section-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:6px 16px;margin-bottom:10px}
+.section-head .eyebrow{font-size:11px}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">Working demo · sample day · real road network</div>
+      <h1>Parcel Pickup Planner</h1>
+      <p>Pickup requests come in, an optimizer assigns them to drivers within their time windows, and the plan updates itself when new requests arrive during the day. Compare it with a typical manual-style plan on the same day.</p>
+    </div>
+    <div class="byline">Built by Bikram Laishram<br><span class="mono">Python · OR-Tools · OSRM</span></div>
+  </header>
+
+  <div class="panel controls" role="group" aria-label="Plan and time controls">
+    <div class="seg" role="group" aria-label="Plan">
+      <button id="s-opt" aria-pressed="true" data-s="optimized">Optimized plan</button>
+      <button id="s-base" aria-pressed="false" data-s="baseline">Manual-style plan</button>
+    </div>
+    <div class="timebox">
+      <button class="btn" id="play" aria-label="Play the day">▶ Play</button>
+      <span class="clock" id="clock">13:00</span>
+      <input type="range" id="time" min="420" max="1080" step="1" value="780" aria-label="Time of day">
+    </div>
+    <div class="live" id="live"></div>
+  </div>
+
+  <div class="main">
+    <div class="panel">
+      <div class="mapbox"><svg id="map" role="img" aria-label="Map of pickups and driver routes"></svg><div class="attrib">Map data © OpenStreetMap contributors</div></div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <div class="rail">
+      <div class="panel pad hero" id="hero"></div>
+      <div class="panel pad">
+        <div class="section-head"><h2>End of day</h2><span class="eyebrow">same requests, same drivers</span></div>
+        <table id="kpi"></table>
+      </div>
+      <div class="panel pad">
+        <div class="section-head"><h2>Dispatch log</h2><span class="eyebrow" id="feed-sub"></span></div>
+        <div class="feed" id="feed"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel pad">
+    <div class="section-head"><h2>Driver day</h2><span class="eyebrow">blocks are pickups · thin lines are driving · dotted is waiting for a window to open</span></div>
+    <div class="gantt-wrap"><svg class="gantt" id="gantt"></svg></div>
+  </div>
+
+  <div class="grid3">
+    <div class="panel pad">
+      <div class="section-head"><h2>Incoming requests</h2><span class="eyebrow">customer message → structured request</span></div>
+      <div class="intake" id="intake"></div>
+    </div>
+    <div class="rail">
+      <div class="panel pad">
+        <div class="section-head"><h2>Driver messages</h2><span class="eyebrow" id="msg-sub"></span></div>
+        <div class="msgs" id="msgs"></div>
+      </div>
+      <div class="panel pad">
+        <div class="section-head"><h2>How it would run in production</h2></div>
+        <ol class="steps">
+          <li><div><b>Collect</b><p>Requests arrive by WhatsApp, email, web form or the client's own system and land in one queue.</p></div></li>
+          <li><div><b>Understand</b><p>An LLM turns free text into a structured request (parcels, time window, priority, address) checked against a strict schema. Unclear messages go to a person.</p></div></li>
+          <li><div><b>Plan</b><p>OR-Tools solves the routing problem with time windows, van capacity and priorities, using road travel times.</p></div></li>
+          <li><div><b>Dispatch</b><p>Each driver gets an ordered stop list with ETAs on their phone.</p></div></li>
+          <li><div><b>Re-plan</b><p>New requests, cancellations or delays trigger a fresh solve in seconds. Stops already under way stay locked.</p></div></li>
+          <li><div><b>Report</b><p>Dashboard and daily report: parcels per driver-hour, missed pickups and why, distance driven.</p></div></li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel pad note" id="assume"></div>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const D = __DATA__;
+const BM = __BASEMAP__;
+const $ = s => document.querySelector(s);
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const hhmm = m => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(Math.round(m % 60)).padStart(2, "0");
+const fmt = n => n.toLocaleString("en-US");
+const REQ = Object.fromEntries(D.requests.map(r => [r.id, r]));
+const DRV = D.drivers.map((d, i) => ({ ...d, n: i + 1, color: `var(--d${i + 1})` }));
+let S = "optimized", T = 780, focus = null, playing = null;
+
+// ---------- projection (Web Mercator, same as the stitched basemap)
+function proj(lat, lon) {
+  const n = 256 * 2 ** BM.zoom, x = (lon + 180) / 360 * n;
+  const r = lat * Math.PI / 180, y = (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n;
+  return [x - BM.x0, y - BM.y0];
+}
+
+// ---------- precompute per strategy: projected geometry, stop indices on it, served map
+const P = {};
+for (const [s, st] of Object.entries(D.strategies)) {
+  const served = {};
+  const routes = st.routes.map((r, v) => {
+    const g = r.geometry.map(p => proj(p[0], p[1]));
+    const cum = [0]; for (let i = 1; i < g.length; i++) cum.push(cum[i - 1] + Math.hypot(g[i][0] - g[i - 1][0], g[i][1] - g[i - 1][1]));
+    const idx = [0]; let from = 0;
+    for (const sp of r.stops) {
+      const q = proj(REQ[sp.id].lat, REQ[sp.id].lon); let best = from, bd = Infinity;
+      for (let j = from; j < g.length; j++) { const d = Math.hypot(g[j][0] - q[0], g[j][1] - q[1]); if (d < bd) { bd = d; best = j; } if (d < 3) break; }
+      idx.push(best); from = best;
+      served[sp.id] = { v, ...sp };
+    }
+    idx.push(g.length - 1);
+    // legs: depot->s0, s_i->s_i+1, last->depot ; with depart/arrive times
+    const legs = []; let dep = DRV[v].start;
+    r.stops.forEach((sp, k) => { legs.push({ a: idx[k], b: idx[k + 1], t0: dep, t1: sp.arrive }); dep = sp.depart; });
+    legs.push({ a: idx[r.stops.length], b: g.length - 1, t0: dep, t1: r.return });
+    return { ...r, g, cum, legs };
+  });
+  P[s] = { routes, served, kpis: st.kpis, events: st.events };
+}
+
+function posAt(rt, t) {
+  // returns [point, geometryIndexFloat]
+  for (const L of rt.legs) {
+    if (t < L.t0) return at(rt, L.a);
+    if (t <= L.t1) {
+      const f = L.t1 > L.t0 ? (t - L.t0) / (L.t1 - L.t0) : 1;
+      const target = rt.cum[L.a] + f * (rt.cum[L.b] - rt.cum[L.a]);
+      let j = L.a; while (j < L.b && rt.cum[j + 1] < target) j++;
+      if (j >= L.b) return at(rt, L.b);
+      const seg = rt.cum[j + 1] - rt.cum[j] || 1, u = (target - rt.cum[j]) / seg;
+      return { p: [rt.g[j][0] + u * (rt.g[j + 1][0] - rt.g[j][0]), rt.g[j][1] + u * (rt.g[j + 1][1] - rt.g[j][1])], j };
+    }
+  }
+  return at(rt, rt.g.length - 1);
+}
+const at = (rt, j) => ({ p: rt.g[j], j });
+
+// ---------- map
+const map = $("#map");
+map.setAttribute("viewBox", `0 0 ${BM.w} ${BM.h}`);
+el("image", { href: BM.img, x: 0, y: 0, width: BM.w, height: BM.h, class: "mapimg", preserveAspectRatio: "none" }, map);
+const gRoutes = el("g", {}, map), gStops = el("g", {}, map), gDrivers = el("g", {}, map);
+const depot = proj(D.depot.lat, D.depot.lon);
+
+function stopStatus(id) {
+  const sv = P[S].served[id];
+  if (!sv) return { k: "missed" };
+  return { k: sv.start <= T ? "done" : "planned", v: sv.v, sv };
+}
+
+function drawMap() {
+  gRoutes.replaceChildren(); gStops.replaceChildren(); gDrivers.replaceChildren();
+  P[S].routes.forEach((rt, v) => {
+    const dim = focus !== null && focus !== v;
+    const pos = posAt(rt, T);
+    const pts = rt.g.map(p => p.join(","));
+    const done = pts.slice(0, pos.j + 1).concat([pos.p.join(",")]);
+    el("polyline", { points: pts.join(" "), fill: "none", stroke: DRV[v].color, "stroke-width": 2.5, "stroke-dasharray": "5 5", opacity: dim ? .08 : .55, "stroke-linejoin": "round" }, gRoutes);
+    el("polyline", { points: done.join(" "), fill: "none", stroke: DRV[v].color, "stroke-width": 4, opacity: dim ? .12 : .95, "stroke-linejoin": "round", "stroke-linecap": "round" }, gRoutes);
+  });
+  // stops
+  for (const r of D.requests) {
+    if (r.arrives > T) continue;
+    const [x, y] = proj(r.lat, r.lon), st = stopStatus(r.id);
+    const dim = focus !== null && st.v !== focus;
+    const rad = 4 + Math.sqrt(r.parcels) * 1.6;
+    const g = el("g", { opacity: dim ? .25 : 1, "data-id": r.id, style: "cursor:pointer" }, gStops);
+    if (r.wave > 0 && T - r.arrives < 30) el("circle", { cx: x, cy: y, r: rad + 2, fill: "none", stroke: "var(--ink)", "stroke-width": 2, class: "pulse" }, g);
+    const col = st.k === "missed" ? "var(--muted-pt)" : DRV[st.v].color;
+    const fill = st.k === "done" ? col : "var(--stop-fill)";
+    const common = { fill, stroke: col, "stroke-width": st.k === "missed" ? 2 : 2.5 };
+    if (st.k === "missed") common["stroke-dasharray"] = "3 2";
+    if (r.priority === "express") el("rect", { x: x - rad, y: y - rad, width: rad * 2, height: rad * 2, transform: `rotate(45 ${x} ${y})`, ...common }, g);
+    else el("circle", { cx: x, cy: y, r: rad, ...common }, g);
+    el("circle", { cx: x, cy: y, r: rad + 8, fill: "transparent" }, g); // hit target
+  }
+  // depot
+  el("rect", { x: depot[0] - 15, y: depot[1] - 15, width: 30, height: 30, rx: 4, fill: "var(--ink)", stroke: "var(--panel)", "stroke-width": 3 }, gDrivers);
+  const ht = el("text", { x: depot[0], y: depot[1] + 4, "text-anchor": "middle", fill: "var(--bg)", "font-family": "var(--f-mono)", "font-size": 11, "font-weight": 600 }, gDrivers); ht.textContent = "HUB";
+  // drivers
+  P[S].routes.forEach((rt, v) => {
+    if (focus !== null && focus !== v) return;
+    const { p } = posAt(rt, T);
+    const atHub = T < DRV[v].start || T >= rt.return;
+    if (atHub) return;
+    el("circle", { cx: p[0], cy: p[1], r: 13, fill: DRV[v].color, stroke: "#fff", "stroke-width": 3 }, gDrivers);
+    const t = el("text", { x: p[0], y: p[1] + 4.5, "text-anchor": "middle", fill: "#fff", "font-family": "var(--f-mono)", "font-size": 13, "font-weight": 600 }, gDrivers); t.textContent = v + 1;
+  });
+}
+
+// ---------- tooltip
+const tip = $("#tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const w = tip.offsetWidth, h = tip.offsetHeight; let x = e.clientX + 14, y = e.clientY + 14; if (x + w > innerWidth - 8) x = e.clientX - w - 14; if (y + h > innerHeight - 8) y = e.clientY - h - 14; tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function hideTip() { tip.hidden = true; }
+function stopTip(id) {
+  const r = REQ[id], st = stopStatus(id);
+  let s = st.k === "missed" ? "Not collected today" : st.k === "done" ? `Picked up ${hhmm(st.sv.start)} by Driver ${st.v + 1}` : `Driver ${st.v + 1}, planned ${hhmm(st.sv.start)}`;
+  return `<b>${r.customer}</b> · <span class="mono">${r.id}</span><br>${r.parcels} parcels · window ${hhmm(r.tw_start)}–${hhmm(r.tw_end)}${r.priority === "express" ? " · express" : ""}<br>${r.wave ? "Came in at " + hhmm(r.arrives) + "<br>" : ""}${s}`;
+}
+gStops.addEventListener("pointermove", e => { const g = e.target.closest("[data-id]"); if (g) showTip(e, stopTip(g.dataset.id)); else hideTip(); });
+gStops.addEventListener("pointerleave", hideTip);
+
+// ---------- legend
+function drawLegend() {
+  const lg = $("#legend"); lg.replaceChildren();
+  DRV.forEach((d, v) => {
+    const b = document.createElement("button"); b.className = "drv"; b.setAttribute("aria-pressed", focus === v);
+    const rt = P[S].routes[v];
+    b.innerHTML = `<i style="background:${d.color}">${v + 1}</i>${rt.stops.length} stops · ${rt.stops.reduce((a, s) => a + REQ[s.id].parcels, 0)} pcs`;
+    b.title = "Show only Driver " + (v + 1);
+    b.onclick = () => { focus = focus === v ? null : v; render(); };
+    lg.appendChild(b);
+  });
+  const k = document.createElement("div"); k.className = "keys";
+  k.innerHTML = `<span><svg width="12" height="12"><circle cx="6" cy="6" r="5" fill="var(--ink-2)"/></svg>picked up</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4.5" fill="var(--stop-fill)" stroke="var(--ink-2)" stroke-width="2"/></svg>planned</span><span><svg width="12" height="12"><rect x="2.5" y="2.5" width="7" height="7" transform="rotate(45 6 6)" fill="var(--ink-2)"/></svg>express</span><span><svg width="12" height="12"><circle cx="6" cy="6" r="4.5" fill="none" stroke="var(--muted-pt)" stroke-width="2" stroke-dasharray="3 2"/></svg>not collected</span><span>size = parcels</span>`;
+  lg.appendChild(k);
+}
+
+// ---------- KPIs
+function drawKpis() {
+  const b = P.baseline.kpis, o = P.optimized.kpis;
+  const gain = o.parcels_collected - b.parcels_collected;
+  $("#hero").innerHTML = `<div class="eyebrow">Optimized vs manual-style, same day</div><div class="big num">+${fmt(gain)} parcels</div><div class="sub">${(gain / b.parcels_collected * 100).toFixed(1)}% more collected with the same 6 drivers, and ${fmt(Math.round(b.km - o.km))} km less driving (${Math.round((b.km - o.km) / b.km * 100)}%).</div>`;
+  const rows = [
+    ["Parcels collected", b.parcels_collected, o.parcels_collected, `of ${fmt(o.parcels_total)}`, 1],
+    ["Pickups served", b.requests_served, o.requests_served, `of ${o.requests_total}`, 1],
+    ["Express served", b.express_served, o.express_served, `of ${o.express_total}`, 1],
+    ["Distance driven, km", Math.round(b.km), Math.round(o.km), "", -1],
+    ["Parcels per driver-hour", b.parcels_per_driver_hour.toFixed(1), o.parcels_per_driver_hour.toFixed(1), "", 1],
+    ["Late pickups", b.late_stops, o.late_stops, "", -1],
+  ];
+  const cs = c => (S === c ? ' class="col-sel"' : "");
+  $("#kpi").innerHTML = `<tr><th></th><th${cs("baseline")}>Manual</th><th${cs("optimized")}>Optimized</th><th>Change</th></tr>` +
+    rows.map(([n, bv, ov, of, dir]) => {
+      const d = +(ov - bv).toFixed(1), good = d * dir > 0, txt = d === 0 ? "—" : (d > 0 ? "+" : "−") + fmt(Math.abs(d));
+      return `<tr><td>${n}${of ? ` <span style="color:var(--ink-3)">${of}</span>` : ""}</td><td${cs("baseline")}>${fmt(bv)}</td><td${cs("optimized")}>${fmt(ov)}</td><td class="delta${d !== 0 && !good ? " neg" : ""}" style="${d === 0 ? "color:var(--ink-3)" : ""}">${txt}</td></tr>`;
+    }).join("");
+}
+
+// ---------- live counter
+function drawLive() {
+  let parcels = 0, stops = 0;
+  for (const [id, sv] of Object.entries(P[S].served)) if (sv.start <= T) { parcels += REQ[id].parcels; stops++; }
+  const known = D.requests.filter(r => r.arrives <= T).length;
+  $("#live").innerHTML = `By ${hhmm(T)}: <b class="num">${fmt(parcels)}</b> parcels from <b class="num">${stops}</b> pickups · <b class="num">${known}</b> requests received`;
+  $("#clock").textContent = hhmm(T);
+}
+
+// ---------- feed + messages
+const ids = list => list.map(id => `<span class="chip${REQ[id].priority === "express" ? " exp" : ""}">${id}</span>`).join("");
+function drawFeed() {
+  const ev = P[S].events;
+  $("#feed-sub").textContent = S === "optimized" ? "re-solves every time requests arrive" : "dispatcher adds to each driver's area";
+  $("#feed").innerHTML = ev.map(e => {
+    const fut = e.time > T ? " future" : "";
+    if (e.type === "plan") return `<div class="ev${fut}"><div class="t">${hhmm(e.time)}</div><div><div class="h">Morning plan built</div><div class="d">${e.planned} of ${e.planned + e.dropped} known pickups scheduled across 6 drivers.${e.dropped ? ` ${e.dropped} can't fit in today's shifts.` : ""}</div></div></div>`;
+    const changed = e.notifications.length;
+    return `<div class="ev${fut}"><div class="t">${hhmm(e.time)}</div><div><div class="h">${e.new.length} new requests · ${e.new_assigned.length} added to routes</div><div class="d">${changed} driver${changed === 1 ? "" : "s"} got an updated route.${e.unplanned.length ? ` ${e.unplanned.length} open request${e.unplanned.length === 1 ? "" : "s"} still don't fit.` : " Every open request fits."}</div><div>${ids(e.new)}</div></div></div>`;
+  }).join("") + (() => { const end = Math.max(...P[S].routes.map(r => r.return)); return `<div class="ev${end > T ? " future" : ""}"><div class="t">${hhmm(end)}</div><div><div class="h">Last van back at hub</div><div class="d">${fmt(P[S].kpis.parcels_collected)} parcels collected, ${P[S].kpis.requests_total - P[S].kpis.requests_served} requests not collected.</div></div></div>`; })();
+}
+function drawMsgs() {
+  const past = P[S].events.filter(e => e.type === "replan" && e.time <= T);
+  const box = $("#msgs");
+  if (!past.length) { $("#msg-sub").textContent = ""; box.innerHTML = `<div class="empty">No route changes yet. The first batch of new requests arrives at ${hhmm(D.waves[0])}. Move the time slider past it to see the messages drivers receive.</div>`; return; }
+  const e = past[past.length - 1];
+  $("#msg-sub").textContent = `sent at ${hhmm(e.time)}`;
+  let notes = e.notifications; if (focus !== null) notes = notes.filter(n => n.driver === DRV[focus].id);
+  if (!notes.length) { box.innerHTML = `<div class="empty">No change for this driver at ${hhmm(e.time)}.</div>`; return; }
+  box.innerHTML = notes.map(n => {
+    const v = DRV.findIndex(d => d.id === n.driver);
+    const add = n.added.map(a => `+ ${hhmm(a.eta)}  ${a.customer}, ${a.parcels} pcs${a.express ? ", EXPRESS" : ""}`).join("\n");
+    const rem = n.removed.map(r => `− ${r.customer} (${r.to ? "moved to Driver " + r.to.slice(1) : "dropped from today's plan"})`).join("\n");
+    return `<div class="msg"><div class="who"><span class="drv" style="padding:0;border:0;cursor:default"><i style="background:${DRV[v].color}">${v + 1}</i></span>To Driver ${v + 1} · route update ${hhmm(e.time)}</div>${[add, rem].filter(Boolean).join("\n")}\n${n.next_stops} pickups left on your route.</div>`;
+  }).join("");
+}
+
+// ---------- gantt
+function drawGantt() {
+  const svg = $("#gantt"), W = 1000, L = 74, R = 24, top = 26, rowH = 34, H = top + rowH * DRV.length + 8;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.replaceChildren();
+  const t0 = 480, t1 = 1080, x = m => L + (m - t0) / (t1 - t0) * (W - L - R);
+  for (let h = 8; h <= 18; h++) { el("line", { x1: x(h * 60), x2: x(h * 60), y1: top - 6, y2: H - 8, stroke: "var(--line)", "stroke-width": 1 }, svg); const t = el("text", { x: x(h * 60), y: 14, "text-anchor": "middle" }, svg); t.textContent = String(h).padStart(2, "0") + ":00"; }
+  D.waves.forEach(w => { el("line", { x1: x(w), x2: x(w), y1: top - 6, y2: H - 8, stroke: "var(--ink-3)", "stroke-dasharray": "2 3" }, svg); });
+  P[S].routes.forEach((rt, v) => {
+    const y = top + v * rowH, cy = y + rowH / 2 - 2, dim = focus !== null && focus !== v;
+    const g = el("g", { opacity: dim ? .25 : 1 }, svg);
+    const lb = el("text", { x: 0, y: cy + 4, class: "lbl" }, g); lb.textContent = "Driver " + (v + 1);
+    let dep = DRV[v].start;
+    rt.stops.forEach(sp => {
+      el("line", { x1: x(dep), x2: x(sp.arrive), y1: cy, y2: cy, stroke: DRV[v].color, "stroke-width": 1.5 }, g);
+      if (sp.start > sp.arrive) el("line", { x1: x(sp.arrive), x2: x(sp.start), y1: cy, y2: cy, stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "1 3" }, g);
+      const r = REQ[sp.id];
+      const rect = el("rect", { x: x(sp.start) + 1, y: cy - 8, width: Math.max(2, x(sp.depart) - x(sp.start) - 2), height: 16, rx: 2, fill: DRV[v].color, opacity: sp.start <= T ? 1 : .45, "data-id": sp.id, style: "cursor:pointer" }, g);
+      if (r.priority === "express") el("rect", { x: x(sp.start) + 1, y: cy - 12, width: Math.max(2, x(sp.depart) - x(sp.start) - 2), height: 3, rx: 1, fill: "var(--warn)" }, g);
+      dep = sp.depart;
+    });
+    el("line", { x1: x(dep), x2: x(rt.return), y1: cy, y2: cy, stroke: DRV[v].color, "stroke-width": 1.5 }, g);
+    el("rect", { x: x(rt.return) - 1, y: cy - 6, width: 2, height: 12, fill: "var(--ink-2)" }, g);
+  });
+  el("line", { x1: x(T), x2: x(T), y1: top - 10, y2: H - 4, stroke: "var(--accent)", "stroke-width": 2 }, svg);
+  svg.onpointermove = e => { const r = e.target.closest("[data-id]"); if (r) showTip(e, stopTip(r.dataset.id)); else hideTip(); };
+  svg.onpointerleave = hideTip;
+}
+
+// ---------- intake
+function drawIntake() {
+  const items = D.intake.filter(m => m.arrives <= T).sort((a, b) => b.arrives - a.arrives || a.id.localeCompare(b.id));
+  const box = $("#intake");
+  if (!items.length) { box.innerHTML = `<div class="empty">The morning's ${D.requests.filter(r => !r.wave).length} requests were already in the system at 07:00. New messages arrive at ${D.waves.map(hhmm).join(", ")}. Move the time slider to see them come in.</div>`; return; }
+  box.innerHTML = `<div class="empty">The demo reads messages with a fixed parser so results repeat exactly. A production build uses an LLM with schema checks here.</div>` + items.map(m => {
+    const p = m.parsed, sv = P[S].served[m.id];
+    const where = sv ? `<span class="chip">→ Driver ${sv.v + 1} at ${hhmm(sv.start)}</span>` : `<span class="chip" style="border-style:dashed">not collected</span>`;
+    return `<div class="in"><div class="mono" style="font-size:12px;color:var(--ink-3)">${hhmm(m.arrives)} · ${m.id}</div><div class="raw">${m.message}</div><div class="parsed">reads as <span class="chip">${p.parcels} parcels</span><span class="chip">${hhmm(p.tw_start)}–${hhmm(p.tw_end)}</span><span class="chip${p.priority === "express" ? " exp" : ""}">${p.priority}</span><span class="chip">${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</span>${where}</div></div>`;
+  }).join("");
+}
+
+// ---------- assumptions
+(function () {
+  const o = P.optimized.kpis, w = D.requests.filter(r => r.wave).length, k = D.requests.length - w;
+  $("#assume").innerHTML = `<h2 style="margin-bottom:4px">What this demo assumes</h2>
+  <p><b>Sample day, not real customer data.</b> ${o.requests_total} pickup requests and ${fmt(o.parcels_total)} parcels: ${k} known at 07:00 and ${w} more arriving at ${D.waves.map(hhmm).join(", ")}. Six drivers, 08:00–17:00 shifts, vans holding ${D.drivers[0].capacity} parcels. Locations are random points in Kyiv placed on real streets.</p>
+  <p><b>Road times.</b> Distances and drive times come from OpenStreetMap road data through the OSRM routing engine, with drive times raised 35% for city traffic. Each pickup takes 4 minutes plus 15 seconds per parcel.</p>
+  <p><b>Manual-style plan.</b> Each driver owns a fixed area around the hub and always drives to the pickup they can reach soonest. New requests go to whoever owns that area. This stands in for a dispatcher planning by hand; a real dispatcher may do better or worse.</p>
+  <p><b>Optimized plan.</b> Google OR-Tools vehicle routing with time windows, van capacity and priorities (express counts 2.5×). It aims to collect as many parcels as possible, then to drive less. It re-solves in 10 seconds whenever new requests arrive, keeping stops already under way and avoiding moving stops between drivers unless it pays off. With a parcel-maximizing goal it can skip a few tiny pickups to reach larger ones; the goal can be changed to "serve every request first".</p>
+  <p><b>Is this day typical?</b> On five other generated sample days the optimized plan collected 4.8% to 10.9% more parcels than the manual-style plan and drove 2% to 13% less. The day shown here sits in that range for parcels and above it for distance. Real gains depend on the client's actual requests, roads and current planning.</p>`;
+})();
+
+// ---------- render + controls
+function render() { drawMap(); drawLegend(); drawKpis(); drawLive(); drawFeed(); drawMsgs(); drawGantt(); drawIntake(); }
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { S = b.dataset.s; document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b)); render(); });
+const slider = $("#time");
+slider.oninput = () => { T = +slider.value; render(); };
+function stop() { clearInterval(playing); playing = null; $("#play").textContent = "▶ Play"; }
+$("#play").onclick = () => {
+  if (playing) return stop();
+  if (T >= 1080) T = 420;
+  $("#play").textContent = "❚❚ Pause";
+  playing = setInterval(() => { T = Math.min(1080, T + 3); slider.value = T; render(); if (T >= 1080) stop(); }, 60);
+};
+render();
+</script>
