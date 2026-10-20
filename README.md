@@ -39,7 +39,7 @@ On five more generated days (`out/robustness.json`), the optimized plan collecte
    - *Manual-style:* each driver owns a fixed area around the hub and always drives to the pickup they can reach soonest.
    - *Optimized:* OR-Tools vehicle routing with time windows, capacity and priority-weighted drop penalties, using guided local search. The morning plan gets 20 seconds to solve and each re-plan gets 10. A re-plan starts from the drivers' current positions, locks stops already under way, starts from the previous plan, and adds a cost for moving a stop to another driver so routes stay stable.
 3. **Intake** (`src/intake.py`): a deterministic parser for customer messages. A production version would use an LLM with a strict JSON schema and keep this parser as a check.
-4. **Page** (`src/export.py`, `src/basemap.py`, `src/build_page.py`): builds a single self-contained HTML file with all data and an OpenStreetMap basemap inlined.
+4. **Page** (`src/export.py`, `src/basemap.py`, `src/build_page.py`): builds `index.html`, a single self-contained page with all data and an OpenStreetMap basemap inlined. GitHub Pages serves this file.
 5. **Verification** (`src/verify.py`): re-checks the exported routes against the raw data without using any planner code.
 
 **Assumptions:** drive times are OSRM free-flow times plus 35% for traffic. Each pickup takes 4 minutes plus 15 seconds per parcel.
@@ -52,7 +52,7 @@ Python 3 · Google OR-Tools · OSRM (OpenStreetMap routing) · Pillow · a singl
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install ortools pillow
+pip install -r requirements.txt   # tested with Python 3.13
 
 python3 src/run.py          # plan the sample day (about 1 minute)
 python3 src/verify.py       # check the exported plan against the raw data
@@ -88,6 +88,6 @@ python3 src/robustness.py   # five more seeds
 
 Map tiles and road data © OpenStreetMap contributors (ODbL). Routing by OSRM.
 
-No license file has been added yet, so all rights are reserved by default.
+Licensed under the [MIT License](LICENSE).
 
 Author: [Bikram Laishram](https://github.com/bikramlaishram) · [AcuityGen](https://github.com/acuitygen)
